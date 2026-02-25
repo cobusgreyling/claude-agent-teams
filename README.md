@@ -249,6 +249,29 @@ Agent Teams is still experimental. Current limitations:
 
 ---
 
+## Ephemeral Teams vs Durable Agents
+
+There's an important distinction to make here. Agent Teams teammates are ephemeral by design. They exist for the duration of a session and then they're gone. No persistent identity, no memory across sessions, no `/resume`. You describe a team, it runs, it finishes, it disappears.
+
+Code-defined agents — what you'd build with LangGraph, CrewAI, or AutoGen — are the opposite.
+
+|                     | Agent Teams (Ephemeral)                           | Code-Defined Agents (Durable)                      |
+| :------------------ | :------------------------------------------------ | :------------------------------------------------- |
+| **Lifespan**        | One session                                       | Persistent across runs                             |
+| **Identity**        | Described in a prompt, forgotten after             | Defined in code, versioned in git                  |
+| **Memory**          | Context window only                               | Vector stores, databases, state files              |
+| **Resumability**    | None — no `/resume` for teammates                 | Built-in checkpointing and replay                  |
+| **Reproducibility** | Depends on the prompt you type                    | Deterministic — same code, same structure          |
+| **Orchestration**   | Natural language                                  | Code (Python, YAML, config)                        |
+
+The tradeoff is clear. Ephemeral agents are fast to create and cheap to experiment with. You type a prompt, get a team, throw it away. Perfect for one-off tasks — reviewing a PR, debugging a bug, exploring a codebase.
+
+Durable agents are what you deploy. When you need the same team structure to run every night against every PR in CI, you don't want to describe it in natural language each time. You want it in code, tested, versioned, and deterministic.
+
+Agent Teams sits in the developer workflow space — interactive, exploratory, disposable. It's not competing with production agent frameworks. It's competing with "let me open four terminal tabs and do this manually."
+
+---
+
 ## What This Signals
 
 When I wrote about [Anthropic's position that you should build skills, not agents](https://cobusgreyling.medium.com/anthropic-says-dont-build-agents-build-skills-instead-47e1a88435ab), the underlying argument was about composability — modular, reusable capabilities rather than monolithic agent architectures.

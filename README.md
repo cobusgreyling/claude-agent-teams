@@ -4,6 +4,36 @@ Your AI assistant just became a team lead.
 
 ---
 
+## The First Thing That Confused Me
+
+When I first looked at Agent Teams, I assumed each agent would be defined somewhere — a config file, a markdown spec, some kind of schema. The examples show detailed prompts describing each teammate's role, responsibilities, and file ownership. It looked like a declarative system.
+
+It's not. There is no agent definition file. The markdown examples are just prompts you paste into Claude Code. The entire orchestration mechanism is:
+
+1. **One config switch** in `settings.json` that turns the feature on
+2. **A natural language prompt** that describes the team you want
+3. **Claude Code** handles the spawning, task management, and messaging
+
+No YAML. No agent schema. No workflow definition. You describe a team conversationally, and Claude Code builds it.
+
+That immediately raised a second question: if the agents are defined by the prompt, why define them at all? Why not just say *"this PR needs a review, handle it"* and let Claude decide what specialists to spawn?
+
+You can. It works. But the reason the examples are prescriptive is control.
+
+When you define the agents, you know exactly what's running and what it costs — each teammate is a separate Claude instance. You prevent Claude from over-spawning eight teammates when three would do. You control file ownership. And you can shape the team dynamic — collaborative, adversarial, or independent.
+
+When you let Claude decide, it might under-scope or over-scope. You lose the ability to set the structure. It's the same tradeoff as managing a real team. You *could* say "here's the problem, figure it out." But more often you want to say "I need these three roles, here's how I want you to coordinate."
+
+In practice there's a spectrum:
+
+- **Prescriptive:** *"Spawn 3 teammates: security, performance, tests"*
+- **Guided:** *"Review this PR with multiple specialists, max 4 teammates"*
+- **Open:** *"This PR needs review. Handle it."*
+
+All three work. Prescriptive for expensive or risky tasks. Open for quick exploratory ones. Once that clicked, the rest of Agent Teams made sense.
+
+---
+
 In a [previous post](https://cobusgreyling.medium.com/create-custom-agentic-workflows-with-claude-code-ee49805bb28b) I walked through creating custom agentic workflows with Claude Code — a supervisor agent coordinating specialised subagents for data processing, code generation, documentation, and analysis. That setup demonstrated something important: you could describe the agentic workflow you wanted, and Claude Code would create the framework, file structure, code, and documentation.
 
 Subagents were a meaningful step forward from single-session prompting. But they had a constraint. Subagents report results back to the main agent. They never talk to each other. If Agent A discovers something that Agent B needs, the main agent has to relay it. Every insight routes through one bottleneck.

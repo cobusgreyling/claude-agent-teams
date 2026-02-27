@@ -1,4 +1,4 @@
-![AI Agents Teams Claude Code](images/1*MTyu2BCPNdElNyoIMbRKDQ.png)
+![AI Agents Teams Claude Code](images/agent-teams-claude-code.png)
 
 ### When The AI Framework Layer Disappears…
 # …the Prompt Becomes the Application
@@ -30,7 +30,7 @@ My first reaction was, this feels too simple. Something must be missing.
 
 **Nothing is missing. The complexity moved. It collapsed into the model.**
 
-![Create Custom Sub-Agents with Claude Code](images/0*zXPcH7gdRjpYF9Iu.png)
+![Create Custom Sub-Agents with Claude Code](images/sub-agents-claude-code.png)
 
 ---
 
@@ -62,11 +62,11 @@ And…
 
 When I wrote about the [5 Levels of AI Agents](https://cobusgreyling.medium.com/5-levels-of-ai-agents-updated-0ddf8931a1c6), the highest levels described autonomous multi-agent coordination.
 
-![5 Levels of AI Agents](images/1*z_sFl7mMFE9wTJi5nVAGGg.jpg)
+![5 Levels of AI Agents](images/5-levels-ai-agents.jpg)
 
 That coordination used to require hundreds of lines of framework code.
 
-![AI Agents vs Chains](images/1*AqDA1n4ZCLPmjLJPKfNMKw.jpg)
+![AI Agents vs Chains](images/agents-vs-chains.jpg)
 
 Now the model does it natively — you describe the team, and orchestration happens.
 
@@ -82,7 +82,7 @@ The remaining 20% — persistence, determinism, cost control, observability, err
 
 Look at how the stack has compressed across three eras…
 
-![The Collapsing Stack](images/1*4q_LzPvdo4Dc1JsN9xs2_A.png)
+![The Collapsing Stack](images/collapsing-stack.png)
 
 Each generation of models chips away at another layer.
 

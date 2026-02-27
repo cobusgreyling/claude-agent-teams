@@ -1,4 +1,4 @@
-![Description]([images/my-image.png](https://github.com/cobusgreyling/claude-agent-teams/blob/main/images/agent-teams-claude-code.png))
+![Description](images/agent-teams-claude-code.png)
 
 # Claude Code Agent Teams — Multi-Agent Orchestration From Your Terminal
 

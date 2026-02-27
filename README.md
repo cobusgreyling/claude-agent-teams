@@ -48,7 +48,10 @@ With the release of **Opus 4.6**, Anthropic shipped something that removes that 
 
 I wrote about the [5 Levels of AI Agents](https://cobusgreyling.medium.com/5-levels-of-ai-agents-updated-0ddf8931a1c6) previously, and Anthropic's own position that [coding agents are becoming the universal everything agent](https://cobusgreyling.medium.com/anthropic-says-coding-agents-are-becoming-the-universal-everything-agent-039f9bb709fc). Agent Teams is the infrastructure that makes that practical.
 
+![Description](images/5-levels-ai-agents.jpg)
+
 The difference between subagents and Agent Teams is communication.
+![Description](images/agents-vs-chains.jpg)
 
 **Subagents** run within a single session. They do focused work and return a result. They cannot message each other, share discoveries mid-task, or coordinate without the main agent acting as intermediary.
 
@@ -72,28 +75,7 @@ As I noted when covering the [Moltbook studies](https://cobusgreyling.medium.com
 
 An Agent Team consists of four components:
 
-```
-┌─────────────────────────────────────────────────┐
-│                   TEAM LEAD                      │
-│           (your main Claude Code session)        │
-│                                                  │
-│    Creates team · Spawns teammates · Steers      │
-└──────────┬───────────────┬───────────────┬──────┘
-           │               │               │
-     ┌─────▼─────┐  ┌─────▼─────┐  ┌─────▼─────┐
-     │ Teammate A │◄►│ Teammate B │◄►│ Teammate C │
-     │ (own ctx)  │  │ (own ctx)  │  │ (own ctx)  │
-     └─────┬──────┘  └─────┬──────┘  └─────┬──────┘
-           │               │               │
-     ┌─────▼───────────────▼───────────────▼──────┐
-     │              SHARED TASK LIST               │
-     │    pending → in_progress → completed        │
-     │         (with dependencies)                 │
-     ├─────────────────────────────────────────────┤
-     │               MAILBOX                       │
-     │     direct messages between any agents      │
-     └─────────────────────────────────────────────┘
-```
+![Description](images/collapsing-stack.png)
 
 Each teammate is a full, independent Claude Code instance with its own context window. Teammates load project context automatically — `CLAUDE.md`, MCP servers, and skills — but they do not inherit the lead's conversation history. They start fresh with only the spawn prompt.
 
@@ -105,6 +87,9 @@ Teams and tasks are stored locally:
 ```
 
 Task claiming uses file locking to prevent race conditions when multiple teammates try to claim the same task simultaneously. When a teammate completes a task that others depend on, blocked tasks unblock automatically.
+
+![Description](images/sub-agents-claude-code.png)
+
 
 ---
 

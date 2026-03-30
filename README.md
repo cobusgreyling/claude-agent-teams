@@ -269,20 +269,115 @@ The shift is from *"AI assistant"* to *"AI team lead"* — and it is happening i
 
 ---
 
-## Repo Contents
+## Additional Resources
 
+### [Case Study: Debugging a WebSocket Disconnect](case-study.md)
+
+A detailed walkthrough of an actual Agent Teams session. Five investigators, one production bug. The team found the root cause in 9 minutes — a `process.exit(1)` hiding in a catch block. Includes teammate dialogue, cross-examination, and cost analysis.
+
+### [Model Selection Guide](model-selection-guide.md)
+
+When to use Opus, Sonnet, or Haiku for each teammate role. Includes cost comparison tables, role-based recommendations, and a rule of thumb: judgment → Opus, competence → Sonnet, consistency → Haiku.
+
+### [Cost Calculator](cost-calculator.py)
+
+Estimate token usage and cost before running a team:
+
+```bash
+python cost-calculator.py --preset review
+python cost-calculator.py --teammates 5 --model sonnet
+python cost-calculator.py --compare
 ```
-├── README.md                          # This blog post
-├── settings.json                      # Agent Teams configuration
-├── examples/
-│   ├── parallel-review.md             # PR review with 3 specialists
-│   ├── competing-hypotheses.md        # Adversarial debugging with 5 agents
-│   └── cross-layer-build.md           # Frontend/backend/tests team
-└── hooks/
-    ├── teammate-idle.sh               # Quality gate: keep working
-    └── task-completed.sh              # Quality gate: block incomplete tasks
+
+### [Decision Tree](decision-tree.md)
+
+Should you use Agent Teams, a single agent, or a code framework? A flowchart and comparison matrix to help you decide.
+
+### [Advanced Patterns](patterns/advanced-patterns.md)
+
+Five advanced team patterns: hierarchical delegation, round-robin review, progressive refinement, escalation chains, and context injection. Full prompts included.
+
+### [Anti-Patterns](patterns/anti-patterns.md)
+
+Seven common mistakes with Agent Teams and how to avoid them. Over-specialization, file conflicts, token explosion, premature consensus, and more.
+
+### [Troubleshooting](troubleshooting.md)
+
+Ten common problems with solutions: stuck teammates, file conflicts, test failures, context overflow, and more.
+
+### [CLAUDE.md Examples](claude-md-examples/)
+
+Sample CLAUDE.md files optimized for multi-agent sessions:
+- [`review-team.md`](claude-md-examples/review-team.md) — code review context
+- [`debug-team.md`](claude-md-examples/debug-team.md) — adversarial debugging context
+- [`build-team.md`](claude-md-examples/build-team.md) — cross-layer feature build context
+
+### [CI/CD Integration](ci-cd/)
+
+GitHub Actions workflows for automated Agent Teams:
+- [`github-actions-review.yml`](ci-cd/github-actions-review.yml) — PR review on every push
+- [`nightly-audit.yml`](ci-cd/nightly-audit.yml) — nightly security audit
+
+### [Observability](observability/)
+
+Capture and analyze team performance:
+- [`hooks/capture-output.sh`](hooks/capture-output.sh) — log task completions to JSONL
+- [`hooks/session-summary.sh`](hooks/session-summary.sh) — generate post-session summary
+- [`observability/report-generator.py`](observability/report-generator.py) — full reports in Markdown, JSON, or HTML
+
+### [Team Launcher Scripts](scripts/)
+
+One-command team setup:
+
+```bash
+./scripts/launch-review-team.sh --pr 142
+./scripts/launch-debug-team.sh --bug "app disconnects after one message"
+./scripts/launch-build-team.sh --feature "user notifications"
 ```
 
 ---
 
-*Chief Evangelist @ Kore.ai | I'm passionate about exploring the intersection of AI and language. Follow me on [LinkedIn](https://www.linkedin.com/in/cobusgreyling) for more on Agentic AI, LLMs and NLP.*
+## Repo Contents
+
+```
+├── README.md                          # This blog post
+├── framework-layer-blog.md            # Stack compression analysis
+├── settings.json                      # Agent Teams configuration
+├── cost-calculator.py                 # Token/cost estimation tool
+├── decision-tree.md                   # When to use Agent Teams
+├── case-study.md                      # Real debugging walkthrough
+├── model-selection-guide.md           # Opus vs Sonnet vs Haiku per role
+├── troubleshooting.md                 # 10 common problems + fixes
+├── examples/
+│   ├── parallel-review.md             # PR review with 3 specialists
+│   ├── competing-hypotheses.md        # Adversarial debugging with 5 agents
+│   └── cross-layer-build.md           # Frontend/backend/tests team
+├── patterns/
+│   ├── advanced-patterns.md           # 5 advanced team patterns
+│   └── anti-patterns.md               # 7 mistakes to avoid
+├── claude-md-examples/
+│   ├── review-team.md                 # CLAUDE.md for code review
+│   ├── debug-team.md                  # CLAUDE.md for debugging
+│   └── build-team.md                  # CLAUDE.md for feature builds
+├── hooks/
+│   ├── teammate-idle.sh               # Quality gate: keep working
+│   ├── task-completed.sh              # Quality gate: block incomplete tasks
+│   ├── capture-output.sh              # Log task completions to JSONL
+│   └── session-summary.sh             # Generate post-session summary
+├── scripts/
+│   ├── launch-review-team.sh          # One-command review team
+│   ├── launch-debug-team.sh           # One-command debug team
+│   └── launch-build-team.sh           # One-command build team
+├── ci-cd/
+│   ├── github-actions-review.yml      # PR review workflow
+│   └── nightly-audit.yml              # Security audit workflow
+├── observability/
+│   └── report-generator.py            # Session report generator
+└── images/
+```
+
+---
+
+## Author
+
+Cobus Greyling

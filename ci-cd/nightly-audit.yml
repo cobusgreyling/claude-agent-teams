@@ -1,0 +1,32 @@
+name: Nightly Codebase Audit
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2 AM UTC daily
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run security audit
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"
+        run: |
+          claude -p "Create an agent team for a nightly security audit.
+          Spawn 3 teammates:
+          1. Dependency auditor: check for known CVEs, outdated packages, license issues
+          2. Code scanner: grep for hardcoded secrets, SQL injection, XSS vectors
+          3. Config reviewer: check env vars, permissions, exposed ports, debug flags
+
+          Output findings to AUDIT_REPORT.md with severity ratings."
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-audit-${{ github.run_number }}
+          path: AUDIT_REPORT.md

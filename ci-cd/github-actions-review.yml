@@ -1,0 +1,49 @@
+name: Agent Teams PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run Agent Teams review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"
+        run: |
+          claude -p "Create an agent team to review the changes in this PR.
+          Spawn three reviewers:
+          1. Security reviewer: check for injection, auth issues, input validation
+          2. Performance reviewer: check for N+1 queries, O(n²) algorithms, missing caches
+          3. Test reviewer: verify new code has tests, edge cases covered
+
+          Each reviewer should output findings as a markdown list.
+          The lead should compile a final summary in REVIEW_SUMMARY.md"
+      - name: Upload review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-teams-review
+          path: REVIEW_SUMMARY.md
+      - name: Comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const review = fs.readFileSync('REVIEW_SUMMARY.md', 'utf8');
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '## Agent Teams Review\n\n' + review
+              });
+            } catch(e) {
+              console.log('No review summary generated');
+            }

@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""
+Launch a requirements discovery team.
+
+Spawns a Product Lead plus simulated user personas and a skeptic to surface
+unstated needs, contradictions, and edge cases before implementation starts.
+
+Usage:
+    ./scripts/launch-requirements-team --feature "user notifications"
+    ./scripts/launch-requirements-team --feature "checkout redesign" --stakeholders 4
+    ./scripts/launch-requirements-team --feature "search" --output docs/specs/ --dry-run
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Launch a requirements discovery team using Claude Agent Teams.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --feature "user notifications"
+  %(prog)s --feature "checkout redesign" --stakeholders 4
+  %(prog)s --feature "search" --output docs/specs/ --dry-run
+        """,
+    )
+    parser.add_argument(
+        "--feature",
+        required=True,
+        metavar="DESCRIPTION",
+        help="Feature to gather requirements for",
+    )
+    parser.add_argument(
+        "--stakeholders",
+        type=int,
+        default=3,
+        metavar="N",
+        help="Number of user persona teammates (default: 3; max: 4)",
+    )
+    parser.add_argument(
+        "--output",
+        default="docs/specs/",
+        metavar="PATH",
+        help="Output directory for PRD (default: docs/specs/)",
+    )
+    parser.add_argument(
+        "--directory",
+        default=".",
+        metavar="DIR",
+        help="Project directory to run Claude in (default: current dir)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the prompt without executing",
+    )
+    return parser.parse_args()
+
+
+def build_prompt(feature: str, stakeholders: int, output: str) -> str:
+    stakeholders = max(2, min(4, stakeholders))
+
+    # Build persona list — always include Power User, Casual User, Skeptic
+    # 4th stakeholder adds a domain-expert perspective
+    personas = [
+        (
+            "Power User",
+            "A technically sophisticated, frequent user who wants depth, configurability, "
+            "and efficiency. Asks 'can it also do X?' and 'what's the keyboard shortcut?'. "
+            "Pushes for completeness and edge-case coverage.",
+        ),
+        (
+            "Casual User",
+            "A non-technical, infrequent user who wants simplicity and clear defaults. "
+            "Asks 'why do I need to know that?' and 'what does this button do?'. "
+            "Pushes back on anything requiring prior knowledge.",
+        ),
+        (
+            "Skeptic",
+            "Challenges every assumption. Asks 'what happens when the network is down?', "
+            "'what if the user has 10,000 items?', 'what does this cost at scale?'. "
+            "Must raise at least 2 concrete objections per round.",
+        ),
+    ]
+    if stakeholders >= 4:
+        personas.append(
+            (
+                "Domain Expert",
+                "A specialist with deep knowledge of the problem space (compliance, "
+                "security, legal, or industry-specific constraints). Flags regulatory "
+                "requirements and non-obvious constraints the team might overlook.",
+            ),
+        )
+
+    persona_lines = "\n".join(
+        f"{i + 1}. **{name}** — {desc}" for i, (name, desc) in enumerate(personas)
+    )
+
+    # Sanitize feature name for use as a filename slug
+    slug = feature.lower().replace(" ", "-").replace("/", "-")
+    prd_path = os.path.join(output.rstrip("/"), f"{slug}-requirements.md")
+
+    return f"""You are the Product Lead facilitating a requirements discovery session.
+
+Feature under discussion: {feature}
+
+Your goal is to produce a thorough Product Requirements Document (PRD) by running \
+structured Q&A sessions with simulated user personas. Personas will surface unstated \
+needs, contradictions, and edge cases that would otherwise be discovered painfully \
+during implementation or QA.
+
+Spawn {len(personas)} teammates:
+
+{persona_lines}
+
+## Session Structure
+
+**Round 1 — Initial reactions:**
+- You (Product Lead) present a 2–3 sentence description of the feature concept.
+- Each persona responds: What excites them, what concerns them, what's missing.
+- Personas must respond to each other (not just to you).
+
+**Round 2 — Deep dive:**
+- You pose 3–5 specific questions about behavior, edge cases, and failure modes.
+- Each persona answers from their perspective.
+- Skeptic must challenge at least one other persona's answer.
+
+**Round 3 — Convergence:**
+- You synthesize areas of agreement and flag unresolved conflicts.
+- Personas confirm or escalate conflicts.
+
+## Output
+
+After all rounds complete, write a PRD to `{prd_path}`:
+
+```markdown
+# Requirements: {feature}
+
+## Problem Statement
+[What problem does this solve? For whom?]
+
+## User Stories
+- As a [persona], I want [action], so that [outcome].
+[3–5 stories, one per key use case]
+
+## Acceptance Criteria
+[Specific, testable conditions for each story]
+
+## Out of Scope
+[Explicit list of what this does NOT include]
+
+## Edge Cases & Constraints
+[Non-obvious behaviors, failure modes, scale limits]
+
+## Open Questions
+[Unresolved decisions that need answers before design can start]
+```
+
+Commit the PRD to git after writing it.
+"""
+
+
+def check_prerequisites():
+    errors = []
+
+    # Check claude CLI
+    result = subprocess.run(
+        ["which", "claude"], capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        errors.append(
+            "Error: 'claude' CLI not found. "
+            "Install from https://docs.anthropic.com/claude-code"
+        )
+
+    # Warn (not error) on missing env var
+    if not os.environ.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"):
+        print(
+            "Warning: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is not set.\n"
+            "  Agent Teams may not work. Set with:\n"
+            "  export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
+            file=sys.stderr,
+        )
+
+    return errors
+
+
+def main():
+    args = parse_args()
+
+    prompt = build_prompt(args.feature, args.stakeholders, args.output)
+
+    if args.dry_run:
+        print("=== DRY RUN — prompt that would be sent ===\n")
+        print(prompt)
+        print("\n=== End of prompt ===")
+        print(f"Feature:    {args.feature}")
+        print(f"Personas:   {args.stakeholders}")
+        print(f"Output dir: {args.output}")
+        print(f"Directory:  {args.directory}")
+        return
+
+    errors = check_prerequisites()
+    if errors:
+        for e in errors:
+            print(e, file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Launching requirements discovery team for: {args.feature}")
+    print(f"Personas: {args.stakeholders}  |  Output: {args.output}\n")
+
+    env = os.environ.copy()
+    env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+
+    result = subprocess.run(
+        [
+            "claude", "-p",
+            "--allowedTools", "Bash,Read,Glob,Grep,Write,Agent",
+            "--directory", args.directory,
+        ],
+        input=prompt,
+        text=True,
+        env=env,
+    )
+    sys.exit(result.returncode)
+
+
+if __name__ == "__main__":
+    main()

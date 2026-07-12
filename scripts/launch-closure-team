@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+"""
+Launch a documentation closure team.
+
+Reads the actual git diff and produces archival artifacts: Architecture Decision
+Record (ADR), PR description, and optionally Jira ticket drafts.
+
+Usage:
+    ./scripts/launch-closure-team --feature "user notifications" --branch feat/notifications
+    ./scripts/launch-closure-team --feature "payments refactor" --jira-project PAY
+    ./scripts/launch-closure-team --feature "auth overhaul" --base-branch main --dry-run
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Launch a documentation closure team using Claude Agent Teams.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --feature "user notifications" --branch feat/notifications
+  %(prog)s --feature "payments refactor" --jira-project PAY
+  %(prog)s --feature "auth overhaul" --base-branch main --dry-run
+        """,
+    )
+    parser.add_argument(
+        "--feature",
+        required=True,
+        metavar="DESCRIPTION",
+        help="Short description of the completed feature or change",
+    )
+    parser.add_argument(
+        "--branch",
+        default=None,
+        metavar="NAME",
+        help="Feature branch name (default: current branch)",
+    )
+    parser.add_argument(
+        "--base-branch",
+        default="main",
+        metavar="NAME",
+        help="Base branch to diff against (default: main)",
+    )
+    parser.add_argument(
+        "--output",
+        default="docs/plans/",
+        metavar="PATH",
+        help="Output directory for ADR (default: docs/plans/)",
+    )
+    parser.add_argument(
+        "--jira-project",
+        default=None,
+        metavar="KEY",
+        help="Jira project key — enables Jira Scribe teammate (e.g. MYAPP)",
+    )
+    parser.add_argument(
+        "--directory",
+        default=".",
+        metavar="DIR",
+        help="Project directory to run Claude in (default: current dir)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the prompt without executing",
+    )
+    return parser.parse_args()
+
+
+def get_current_branch(directory: str) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=directory,
+    )
+    if result.returncode != 0:
+        return "HEAD"
+    return result.stdout.strip()
+
+
+def build_prompt(
+    feature: str,
+    branch: str,
+    base_branch: str,
+    output: str,
+    jira_project: str | None,
+) -> str:
+    slug = feature.lower().replace(" ", "-").replace("/", "-")
+    output = output.rstrip("/")
+    adr_path = os.path.join(output, f"{slug}-adr.md")
+
+    jira_section = ""
+    jira_teammate = ""
+    if jira_project:
+        jira_teammate = f"""
+4. **Jira Scribe** — Read the git log and diff summary from the Docs Lead's Mailbox.
+   Write one Jira ticket draft per logical work item found in the diff.
+   For each ticket:
+   - **Summary**: imperative verb + object ("Add POST /notifications endpoint")
+   - **Type**: Story (new capability), Bug (defect fix), or Task (infrastructure/cleanup)
+   - **Description**: what it does, why it was needed, acceptance criteria for QA
+   - **Labels**: suggest relevant labels based on what changed (api, ui, database, etc.)
+   Output all ticket drafts to stdout in markdown, one per H2 heading.
+   Project key: {jira_project}
+"""
+        jira_section = f"""
+5. **Jira Ticket Drafts** (if --jira-project was provided)
+   Output above, formatted as markdown H2 sections ready to paste into Jira.
+"""
+
+    teammate_count = "4" if jira_project else "3"
+
+    return f"""You are the Docs Lead coordinating documentation closure for a completed feature.
+
+Feature: {feature}
+Branch: {branch}
+Base: {base_branch}
+
+## Step 1 — Read the actual diff
+
+Run these commands and share the output in the Mailbox so all teammates have it:
+
+```bash
+git log {base_branch}..{branch} --oneline
+git diff {base_branch}..{branch} --stat
+git diff {base_branch}..{branch} -- .
+```
+
+If the diff is very large (>500 lines), share the `--stat` summary and read specific
+files of interest in full. Document what you found in the Mailbox before spawning teammates.
+
+## Step 2 — Spawn {teammate_count} teammates
+
+1. **ADR Writer** — Read the diff summary from the Docs Lead's Mailbox.
+   Write an Architecture Decision Record to `{adr_path}`.
+   Important: document the decisions that were *actually made* in the diff —
+   not the ideal decisions, and not decisions that are still open.
+   Structure:
+   ```markdown
+   # ADR: [Short decision title — imperative phrase, e.g. "Use event-driven notifications"]
+
+   ## Status
+   Accepted
+
+   ## Context
+   [What problem. What constraints. What alternatives existed before this change.]
+
+   ## Decision
+   [Exactly what was chosen. Be concrete: name the pattern, library, schema shape, etc.]
+
+   ## Rationale
+   [Why this over the alternatives. Be honest about trade-offs.]
+
+   ## Consequences
+   [What becomes easier. What becomes harder. What new obligations this creates.]
+
+   ## Alternatives Considered
+   [What else was evaluated and why it lost.]
+   ```
+   Write one ADR file per major architectural decision. If multiple decisions
+   were made, write multiple H1 sections in the same file.
+   Commit the file to git after writing.
+
+2. **PR Summarizer** — Read the diff summary from the Docs Lead's Mailbox.
+   Write a pull request description to stdout (markdown, ready to paste into GitHub/GitLab):
+   ```markdown
+   ## Summary
+   [3–5 bullet points: what changed at the user/API level]
+
+   ## Motivation
+   [Why this change was needed. Link to requirements doc or ticket if available.]
+
+   ## What Changed
+   [Technical summary: new files, modified components, schema changes, config changes]
+
+   ## Test Plan
+   - [ ] [Manual verification step]
+   - [ ] [Automated test that covers it]
+   - [ ] [Edge case to verify]
+
+   ## Breaking Changes
+   [Any API, schema, or config changes that require consumer action. "None" if clean.]
+
+   ## Rollback Plan
+   [How to revert if this causes problems in production.]
+   ```
+{jira_teammate}
+## Step 3 — Docs Lead review and commit
+
+After all teammates complete:
+1. Read the ADR and check it describes actual decisions, not aspirations.
+2. Read the PR description and check it matches what the diff shows.
+3. Commit the ADR to git if not already committed.
+4. Print the PR description and any Jira drafts to stdout for the user to copy.
+
+## Output Summary
+
+After the team completes, confirm:
+- ADR committed at: `{adr_path}`
+- PR description: printed to stdout
+- Commits added: list with one-line summaries{jira_section}
+"""
+
+
+def check_prerequisites(directory: str):
+    errors = []
+
+    # Check claude CLI
+    result = subprocess.run(
+        ["which", "claude"], capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        errors.append(
+            "Error: 'claude' CLI not found. "
+            "Install from https://docs.anthropic.com/claude-code"
+        )
+
+    # Check we're in a git repo
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-dir"],
+        capture_output=True,
+        text=True,
+        cwd=directory,
+    )
+    if result.returncode != 0:
+        errors.append(f"Error: Not a git repository: {directory}")
+
+    # Warn on missing env var
+    if not os.environ.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"):
+        print(
+            "Warning: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is not set.\n"
+            "  Agent Teams may not work. Set with:\n"
+            "  export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
+            file=sys.stderr,
+        )
+
+    return errors
+
+
+def main():
+    args = parse_args()
+
+    # Resolve branch name
+    branch = args.branch or get_current_branch(args.directory)
+
+    prompt = build_prompt(
+        args.feature,
+        branch,
+        args.base_branch,
+        args.output,
+        args.jira_project,
+    )
+
+    if args.dry_run:
+        print("=== DRY RUN — prompt that would be sent ===\n")
+        print(prompt)
+        print("\n=== End of prompt ===")
+        print(f"Feature:      {args.feature}")
+        print(f"Branch:       {branch}")
+        print(f"Base:         {args.base_branch}")
+        print(f"Output:       {args.output}")
+        print(f"Jira project: {args.jira_project or '(none)'}")
+        print(f"Directory:    {args.directory}")
+        return
+
+    errors = check_prerequisites(args.directory)
+    if errors:
+        for e in errors:
+            print(e, file=sys.stderr)
+        sys.exit(1)
+
+    teammates = 4 if args.jira_project else 3
+    print(f"Launching documentation closure team for: {args.feature}")
+    print(f"Branch: {branch} → {args.base_branch}  |  Teammates: {teammates}\n")
+
+    env = os.environ.copy()
+    env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+
+    result = subprocess.run(
+        [
+            "claude", "-p",
+            "--allowedTools", "Bash,Read,Glob,Grep,Write,Agent",
+            "--directory", args.directory,
+        ],
+        input=prompt,
+        text=True,
+        env=env,
+    )
+    sys.exit(result.returncode)
+
+
+if __name__ == "__main__":
+    main()

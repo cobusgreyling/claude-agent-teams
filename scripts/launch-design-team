@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""
+Launch a technical design team.
+
+Spawns a Tech Lead plus reviewers (Senior Engineer, Implementer, Stakeholder) to
+stress-test a design before implementation starts. Requires a requirements spec as input.
+
+Usage:
+    ./scripts/launch-design-team --spec docs/specs/notifications-requirements.md
+    ./scripts/launch-design-team --spec docs/specs/auth-requirements.md --output docs/plans/
+    ./scripts/launch-design-team --spec docs/specs/payments.md --dry-run
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Launch a technical design team using Claude Agent Teams.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --spec docs/specs/notifications-requirements.md
+  %(prog)s --spec docs/specs/auth-requirements.md --output docs/plans/
+  %(prog)s --spec docs/specs/payments.md --dry-run
+        """,
+    )
+    parser.add_argument(
+        "--spec",
+        required=True,
+        metavar="PATH",
+        help="Path to requirements spec (PRD or similar)",
+    )
+    parser.add_argument(
+        "--output",
+        default="docs/plans/",
+        metavar="PATH",
+        help="Output directory for design doc and ADR (default: docs/plans/)",
+    )
+    parser.add_argument(
+        "--directory",
+        default=".",
+        metavar="DIR",
+        help="Project directory to run Claude in (default: current dir)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the prompt without executing",
+    )
+    return parser.parse_args()
+
+
+def build_prompt(spec: str, output: str) -> str:
+    # Derive output filenames from spec filename
+    spec_basename = os.path.splitext(os.path.basename(spec))[0]
+    # Strip common suffixes like -requirements, -req, -prd
+    for suffix in ("-requirements", "-req", "-prd", "-spec"):
+        if spec_basename.endswith(suffix):
+            spec_basename = spec_basename[: -len(suffix)]
+            break
+
+    output = output.rstrip("/")
+    design_path = os.path.join(output, f"{spec_basename}-design.md")
+    adr_path = os.path.join(output, f"{spec_basename}-adr.md")
+
+    return f"""You are the Tech Lead driving a technical design session.
+
+Requirements spec: {spec}
+
+Read the spec thoroughly before proceeding. Your goal is to produce a technical design
+document that has survived adversarial peer review — not a first-draft that gets
+shredded in the actual code review.
+
+Spawn 3 teammates:
+
+1. **Senior Engineer** — Your job is to break the design. Look for:
+   - Single points of failure and what happens when they fail
+   - N+1 patterns, missing indexes, hot paths that won't scale
+   - Operational concerns (how do we debug this at 2am? how do we roll it back?)
+   - Security implications of the proposed approach
+   You must raise at least 2 concrete objections with supporting reasoning.
+
+2. **Implementer** — Your job is to clarify what you would actually need to build this.
+   Look for:
+   - Missing API contracts (what does endpoint X return when Y is null?)
+   - Undefined error states (what do callers do when this fails?)
+   - Ambiguous ownership (who owns the retry logic — caller or callee?)
+   - Implicit dependencies that aren't called out
+   For every ambiguity, ask a specific "what does X do when Y?" question.
+
+3. **Stakeholder** — Your job is to validate the design against the requirements. Look for:
+   - Requirements from the spec that aren't addressed by the design
+   - Scope creep (design delivers more than required, adding risk and cost)
+   - User-facing implications of technical decisions ("if we do it this way,
+     the user sees a 2-second delay — is that acceptable?")
+   You must confirm or reject each major design decision against a specific requirement.
+
+## Session Structure
+
+**Round 1 — Initial design proposal:**
+Tech Lead presents:
+- Proposed architecture (components, data flow, key interfaces)
+- Technology choices with brief rationale
+- What's explicitly out of scope
+
+All three reviewers respond with their initial concerns. Reviewers must respond
+to at least one point raised by another reviewer.
+
+**Round 2 — Revised design:**
+Tech Lead addresses the Round 1 feedback and presents a revised design.
+Reviewers confirm whether their concerns are resolved or escalate unresolved ones.
+Stakeholder does final requirement coverage check.
+
+## Output
+
+After Round 2, write two documents:
+
+**`{design_path}`:**
+```markdown
+# Technical Design: [feature name]
+
+## Overview
+[1–2 paragraph summary of the approach]
+
+## Architecture
+[Component diagram or description, data flow, system boundaries]
+
+## Components
+[For each component: what it does, its interface, what it depends on]
+
+## API Contracts
+[Request/response shapes for all new or modified endpoints]
+
+## Data Model
+[Schema changes, new tables/fields, migration strategy]
+
+## Error Handling
+[How errors propagate, what callers should expect, retry strategy]
+
+## Operational Concerns
+[How to debug, monitor, and roll back]
+
+## Open Decisions
+[Unresolved choices: options considered, recommendation, decision needed from whom]
+
+## Rejected Approaches
+[What was considered and why it was ruled out]
+```
+
+**`{adr_path}`:**
+```markdown
+# ADR: [Short decision title]
+
+## Status
+Proposed
+
+## Context
+[What problem, what constraints, what prompted this decision]
+
+## Decision
+[What was chosen — be specific, not vague]
+
+## Rationale
+[Why this over the alternatives]
+
+## Consequences
+[Trade-offs accepted, future implications, what becomes easier/harder]
+
+## Alternatives Considered
+[What else was evaluated and why it was rejected]
+```
+
+Write one ADR per major architectural decision. Commit both documents to git.
+"""
+
+
+def check_prerequisites(spec: str):
+    errors = []
+
+    # Check spec file exists
+    if not os.path.isfile(spec):
+        errors.append(f"Error: Spec file not found: {spec}")
+
+    # Check claude CLI
+    result = subprocess.run(
+        ["which", "claude"], capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        errors.append(
+            "Error: 'claude' CLI not found. "
+            "Install from https://docs.anthropic.com/claude-code"
+        )
+
+    # Warn on missing env var
+    if not os.environ.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"):
+        print(
+            "Warning: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is not set.\n"
+            "  Agent Teams may not work. Set with:\n"
+            "  export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
+            file=sys.stderr,
+        )
+
+    return errors
+
+
+def main():
+    args = parse_args()
+
+    prompt = build_prompt(args.spec, args.output)
+
+    if args.dry_run:
+        print("=== DRY RUN — prompt that would be sent ===\n")
+        print(prompt)
+        print("\n=== End of prompt ===")
+        print(f"Spec:      {args.spec}")
+        print(f"Output:    {args.output}")
+        print(f"Directory: {args.directory}")
+        return
+
+    errors = check_prerequisites(args.spec)
+    if errors:
+        for e in errors:
+            print(e, file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Launching technical design team for spec: {args.spec}")
+    print(f"Output: {args.output}\n")
+
+    env = os.environ.copy()
+    env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+
+    result = subprocess.run(
+        [
+            "claude", "-p",
+            "--allowedTools", "Bash,Read,Glob,Grep,Write,Agent",
+            "--directory", args.directory,
+        ],
+        input=prompt,
+        text=True,
+        env=env,
+    )
+    sys.exit(result.returncode)
+
+
+if __name__ == "__main__":
+    main()
